@@ -764,7 +764,7 @@ class GPUStatCollection(Sequence[GPUStat]):
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
-        root_users = ["root", "_rpc", "systemd-resolve", "messagebus", "nvidia-persistenced", "ntp", "nslcd", "postfix", "daemon"]
+        root_users = ["root", "_rpc", "systemd-resolve", "messagebus", "nvidia-persistenced", "ntp", "nslcd", "postfix", "daemon", "munge"]
         for user in root_users:
             if user != "root":
                 user_cpu_percent["root"] += user_cpu_percent.pop(user, 0)
