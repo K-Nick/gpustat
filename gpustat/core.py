@@ -788,8 +788,8 @@ class GPUStatCollection(Sequence[GPUStat]):
                 "cpu_count": cpu_count,
                 "vmem_used": vmem_used,
                 "vmem_total": vmem_total,
+                "user_cpu_percent": dict(user_cpu_percent),
             },
-            "user_cpu_percent": dict(user_cpu_percent),
             "gpus": [g.jsonify() for g in self],
         }
 
