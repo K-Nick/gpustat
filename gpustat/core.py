@@ -18,6 +18,7 @@ from typing import (
     Union,
     cast,
 )
+from collections import defaultdict
 
 try:
     from typing_extensions import TypedDict
@@ -250,36 +251,19 @@ class GPUStat:
         colors["C0"] = term.normal
         colors["C1"] = term.cyan
         colors["CName"] = _conditional(lambda: self.available, term.blue, term.red)
-        colors["CTemp"] = _conditional(
-            lambda: self.temperature < 50, term.red, term.bold_red
-        )
-        colors["FSpeed"] = _conditional(
-            lambda: self.fan_speed < 30, term.cyan, term.bold_cyan
-        )
-        colors["CMemU"] = _conditional(
-            lambda: self.available, term.bold_yellow, term.bold_black
-        )
-        colors["CMemT"] = _conditional(
-            lambda: self.available, term.yellow, term.bold_black
-        )
+        colors["CTemp"] = _conditional(lambda: self.temperature < 50, term.red, term.bold_red)
+        colors["FSpeed"] = _conditional(lambda: self.fan_speed < 30, term.cyan, term.bold_cyan)
+        colors["CMemU"] = _conditional(lambda: self.available, term.bold_yellow, term.bold_black)
+        colors["CMemT"] = _conditional(lambda: self.available, term.yellow, term.bold_black)
         colors["CMemP"] = term.yellow
         colors["CCPUMemU"] = term.yellow
         colors["CUser"] = term.bold_black  # gray
-        colors["CUtil"] = _conditional(
-            lambda: self.utilization < 30, term.green, term.bold_green
-        )
-        colors["CUtilEnc"] = _conditional(
-            lambda: self.utilization_enc < _ENC_THRESHOLD, term.green, term.bold_green
-        )
-        colors["CUtilDec"] = _conditional(
-            lambda: self.utilization_dec < _ENC_THRESHOLD, term.green, term.bold_green
-        )
+        colors["CUtil"] = _conditional(lambda: self.utilization < 30, term.green, term.bold_green)
+        colors["CUtilEnc"] = _conditional(lambda: self.utilization_enc < _ENC_THRESHOLD, term.green, term.bold_green)
+        colors["CUtilDec"] = _conditional(lambda: self.utilization_dec < _ENC_THRESHOLD, term.green, term.bold_green)
         colors["CCPUUtil"] = term.green
         colors["CPowU"] = _conditional(
-            lambda: (
-                self.power_limit is not None
-                and float(self.power_draw) / self.power_limit < 0.4
-            ),  # type: ignore
+            lambda: (self.power_limit is not None and float(self.power_draw) / self.power_limit < 0.4),  # type: ignore
             term.magenta,
             term.bold_magenta,
         )
@@ -383,9 +367,7 @@ class GPUStat:
             if show_cmd:
                 if r:
                     r += ":"
-                r += "{C1}{}{C0}".format(
-                    _repr(p.get("command", p["pid"]), "--"), **colors
-                )
+                r += "{C1}{}{C0}".format(_repr(p.get("command", p["pid"]), "--"), **colors)
 
             if show_pid:
                 r += "/%s" % _repr(p["pid"], "--")
@@ -399,9 +381,7 @@ class GPUStat:
                 util.bytes2human(_repr(p["cpu_memory_usage"], 0)),
                 **colors,
             )  # type: ignore
-            full_command_pretty = util.prettify_commandline(
-                p["full_command"], colors["C1"], colors["CCmd"]
-            )
+            full_command_pretty = util.prettify_commandline(p["full_command"], colors["C1"], colors["CCmd"])
             r += "{C0}: {CCmd}{}{C0}".format(_repr(full_command_pretty, "?"), **colors)
             return r
 
@@ -425,10 +405,7 @@ class GPUStat:
     def jsonify(self):
         o = self.entry.copy()
         if self.entry["processes"] is not None:
-            o["processes"] = [
-                {k: v for (k, v) in p.items() if k != "gpu_uuid"}
-                for p in self.entry["processes"]
-            ]
+            o["processes"] = [{k: v for (k, v) in p.items() if k != "gpu_uuid"} for p in self.entry["processes"]]
         return o
 
 
@@ -458,9 +435,7 @@ class GPUStatCollection(Sequence[GPUStat]):
 
     global_processes = {}
 
-    def __init__(
-        self, gpu_list: Sequence[GPUStat], driver_version: Optional[str] = None
-    ):
+    def __init__(self, gpu_list: Sequence[GPUStat], driver_version: Optional[str] = None):
         self.gpus = list(gpu_list)
 
         # attach additional system information
@@ -507,12 +482,8 @@ class GPUStatCollection(Sequence[GPUStat]):
                 """Get the process information of specific pid"""
                 process = {}
                 if nv_process.pid not in GPUStatCollection.global_processes:
-                    GPUStatCollection.global_processes[nv_process.pid] = psutil.Process(
-                        pid=nv_process.pid
-                    )
-                ps_process: psutil.Process = GPUStatCollection.global_processes[
-                    nv_process.pid
-                ]
+                    GPUStatCollection.global_processes[nv_process.pid] = psutil.Process(pid=nv_process.pid)
+                ps_process: psutil.Process = GPUStatCollection.global_processes[nv_process.pid]
 
                 # TODO: ps_process is being cached, but the dict below is not.
                 process["username"] = safepcall(ps_process.username, "?")
@@ -528,17 +499,12 @@ class GPUStatCollection(Sequence[GPUStat]):
                     process["full_command"] = _cmdline
                 # Bytes to MBytes
                 # if drivers are not TTC this will be None.
-                usedmem = (
-                    nv_process.usedGpuMemory // MB if nv_process.usedGpuMemory else None
-                )
+                usedmem = nv_process.usedGpuMemory // MB if nv_process.usedGpuMemory else None
                 process["gpu_memory_usage"] = usedmem
 
                 process["cpu_percent"] = safepcall(ps_process.cpu_percent, 0.0)
                 process["cpu_memory_usage"] = safepcall(
-                    lambda: round(
-                        (ps_process.memory_percent() / 100.0)
-                        * psutil.virtual_memory().total
-                    ),
+                    lambda: round((ps_process.memory_percent() / 100.0) * psutil.virtual_memory().total),
                     0.0,
                 )
 
@@ -562,9 +528,7 @@ class GPUStatCollection(Sequence[GPUStat]):
             gpu_info["name"] = _decode(N.nvmlDeviceGetName(handle))
             gpu_info["uuid"] = _decode(N.nvmlDeviceGetUUID(handle))
 
-            gpu_info["temperature.gpu"] = safenvml(N.nvmlDeviceGetTemperature)(
-                handle, N.NVML_TEMPERATURE_GPU
-            )
+            gpu_info["temperature.gpu"] = safenvml(N.nvmlDeviceGetTemperature)(handle, N.NVML_TEMPERATURE_GPU)
 
             gpu_info["fan.speed"] = safenvml(N.nvmlDeviceGetFanSpeed)(handle)
 
@@ -576,34 +540,24 @@ class GPUStatCollection(Sequence[GPUStat]):
 
             # GPU utilization
             utilization = safenvml(N.nvmlDeviceGetUtilizationRates)(handle)
-            gpu_info["utilization.gpu"] = (
-                int(utilization.gpu) if utilization is not None else None
-            )
+            gpu_info["utilization.gpu"] = int(utilization.gpu) if utilization is not None else None
 
             utilization = safenvml(N.nvmlDeviceGetEncoderUtilization)(handle)
-            gpu_info["utilization.enc"] = (
-                utilization[0] if utilization is not None else None
-            )
+            gpu_info["utilization.enc"] = utilization[0] if utilization is not None else None
 
             utilization = safenvml(N.nvmlDeviceGetDecoderUtilization)(handle)
-            gpu_info["utilization.dec"] = (
-                utilization[0] if utilization is not None else None
-            )
+            gpu_info["utilization.dec"] = utilization[0] if utilization is not None else None
 
             # Power
             power = safenvml(N.nvmlDeviceGetPowerUsage)(handle)
             gpu_info["power.draw"] = power // 1000 if power is not None else None
 
             power_limit = safenvml(N.nvmlDeviceGetEnforcedPowerLimit)(handle)
-            gpu_info["enforced.power.limit"] = (
-                power_limit // 1000 if power_limit is not None else None
-            )
+            gpu_info["enforced.power.limit"] = power_limit // 1000 if power_limit is not None else None
 
             # Processes
             nv_comp_processes = safenvml(N.nvmlDeviceGetComputeRunningProcesses)(handle)
-            nv_graphics_processes = safenvml(N.nvmlDeviceGetGraphicsRunningProcesses)(
-                handle
-            )
+            nv_graphics_processes = safenvml(N.nvmlDeviceGetGraphicsRunningProcesses)(handle)
 
             if nv_comp_processes is None and nv_graphics_processes is None:
                 processes = None
@@ -639,9 +593,7 @@ class GPUStatCollection(Sequence[GPUStat]):
                 time.sleep(0.1)
                 for process in processes:
                     pid = process["pid"]
-                    cache_process: psutil.Process = GPUStatCollection.global_processes[
-                        pid
-                    ]
+                    cache_process: psutil.Process = GPUStatCollection.global_processes[pid]
                     process["cpu_percent"] = safepcall(cache_process.cpu_percent, 0)
             gpu_info["processes"] = processes
 
@@ -791,11 +743,41 @@ class GPUStatCollection(Sequence[GPUStat]):
 
         fp.flush()
 
+    def track_cpu_usage(self):
+        user_cpu_percent = defaultdict(float)
+
+        # trigger tracking of psutils
+        for proc in psutil.process_iter():
+            try:
+                proc.cpu_percent(interval=None)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        time.sleep(1)
+
+        for proc in psutil.process_iter(["cpu_percent", "username"]):
+            try:
+                user_name = proc.info["username"]
+                cpu_percent = proc.info["cpu_percent"]
+                # 累加到对应用户的CPU占用率中
+                user_cpu_percent[user_name] += cpu_percent
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+        root_users = ["root", "_rpc", "systemd-resolve", "messagebus", "nvidia-persistenced", "ntp", "nslcd", "postfix", "daemon"]
+        for user in root_users:
+            if user != "root":
+                user_cpu_percent["root"] += user_cpu_percent.pop(user, 0)
+
+        return user_cpu_percent
+
     def jsonify(self):
         cpu_count = psutil.cpu_count()
         cpu_percent = psutil.cpu_percent(interval=1)
         vmem_used = psutil.virtual_memory().used
         vmem_total = psutil.virtual_memory().total
+
+        user_cpu_percent = self.track_cpu_usage()
 
         return {
             "hostname": self.hostname,
@@ -807,6 +789,7 @@ class GPUStatCollection(Sequence[GPUStat]):
                 "vmem_used": vmem_used,
                 "vmem_total": vmem_total,
             },
+            "user_cpu_percent": dict(user_cpu_percent),
             "gpus": [g.jsonify() for g in self],
         }
 
